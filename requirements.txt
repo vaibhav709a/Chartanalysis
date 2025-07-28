@@ -1,1 +1,5 @@
-pip install streamlit ta plotly requests pandas
+streamlit
+pandas
+plotly
+ta
+requests
