@@ -4,13 +4,11 @@ import plotly.graph_objects as go
 import ta
 import requests
 
----------------------------
-
-1. Title & Config
-
----------------------------
-
-st.set_page_config(page_title="AI Forex Signal Dashboard", layout="wide") st.title("📊 AI-Powered Forex Signal Dashboard")
+# ---------------------------
+# 1. Title & Config
+# ---------------------------
+st.set_page_config(page_title="AI Forex Signal Dashboard", layout="wide")
+st.title("📊 AI-Powered Forex Signal Dashboard")
 
 ---------------------------
 
