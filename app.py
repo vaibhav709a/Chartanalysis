@@ -4,15 +4,15 @@ import plotly.graph_objects as go
 import ta
 import requests
 
-# ---------------------------------------
-# 1. Title & Page Configuration
-# ---------------------------------------
-st.set_page_config(page_title="AI Forex Signal Dashboard", layout="wide")
-st.title("📊 AI-Powered Forex Signal Dashboard")
+# -------------------------------
+# Page Config & Header
+# -------------------------------
+st.set_page_config(page_title="Strict AI Forex Planner", layout="wide")
+st.title("🔒 AI Forex Smart Entry Planner (Strict Mode)")
 
-# ---------------------------------------
-# 2. Forex Symbol Selector
-# ---------------------------------------
+# -------------------------------
+# Symbol Selector
+# -------------------------------
 symbols = {
     "EUR/USD": ("EUR", "USD"),
     "GBP/USD": ("GBP", "USD"),
@@ -21,139 +21,106 @@ symbols = {
     "AUD/USD": ("AUD", "USD"),
     "USD/CAD": ("USD", "CAD")
 }
-
-pair = st.selectbox("Choose Forex Pair", list(symbols.keys()))
+pair = st.selectbox("Select Forex Pair", list(symbols.keys()))
 from_symbol, to_symbol = symbols[pair]
 
-strict_mode = st.toggle("🔒 Strict Signal Mode", value=True)
-
-# ---------------------------------------
-# 3. Get Forex Data from TwelveData
-# ---------------------------------------
-def get_data(symbol1, symbol2):
-    api_key = "806dd29a09244737ae6cd1a305061557"  # Replace this!
-    url = f"https://api.twelvedata.com/time_series?symbol={symbol1}/{symbol2}&interval=15min&outputsize=50&apikey={api_key}"
+# -------------------------------
+# Data Loader
+# -------------------------------
+def get_data(sym1, sym2):
+    api_key = "806dd29a09244737ae6cd1a305061557"  # Replace with your real key
+    url = f"https://api.twelvedata.com/time_series?symbol={sym1}/{sym2}&interval=15min&outputsize=50&apikey={api_key}"
     r = requests.get(url)
     data = r.json()
 
-    if 'values' not in data:
-        st.error("Error fetching data. Please check your API key and symbol.")
+    if "values" not in data:
+        st.error("Failed to fetch data. Check API key or pair.")
         return pd.DataFrame()
 
-    df = pd.DataFrame(data['values'])
-    df = df.rename(columns={
-        "datetime": "date",
-        "open": "open",
-        "high": "high",
-        "low": "low",
-        "close": "close"
-    })
-    df = df.astype({"open": float, "high": float, "low": float, "close": float})
-    df['date'] = pd.to_datetime(df['date'])
-    df = df.sort_values('date')
+    df = pd.DataFrame(data["values"])
+    df = df.rename(columns={"datetime": "date", "open": "open", "high": "high", "low": "low", "close": "close"})
+    df = df.astype(float)
+    df["date"] = pd.to_datetime(data["values"][0]["datetime"])
+    df["date"] = pd.to_datetime(df["date"])
+    df = df.sort_values("date")
     return df
 
-# ---------------------------------------
-# 4. Generate Indicators & Signal
-# ---------------------------------------
-def generate_signal(df, strict=False):
-    df['ema10'] = ta.trend.ema_indicator(df['close'], window=10)
-    df['ema20'] = ta.trend.ema_indicator(df['close'], window=20)
-    df['ema50'] = ta.trend.ema_indicator(df['close'], window=50)
-    df['rsi'] = ta.momentum.rsi(df['close'], window=14)
-    df['macd'] = ta.trend.macd_diff(df['close'])
-    bb = ta.volatility.BollingerBands(df['close'], window=20, window_dev=2)
-    df['bb_upper'] = bb.bollinger_hband()
-    df['bb_lower'] = bb.bollinger_lband()
-    df['atr'] = ta.volatility.average_true_range(df['high'], df['low'], df['close'], window=14)
+# -------------------------------
+# Indicator Logic
+# -------------------------------
+def analyze(df):
+    df["ema10"] = ta.trend.ema_indicator(df["close"], window=10)
+    df["ema20"] = ta.trend.ema_indicator(df["close"], window=20)
+    df["ema50"] = ta.trend.ema_indicator(df["close"], window=50)
+    df["rsi"] = ta.momentum.rsi(df["close"], window=14)
+    df["macd"] = ta.trend.macd_diff(df["close"])
+    df["atr"] = ta.volatility.average_true_range(df["high"], df["low"], df["close"], window=14)
 
     last = df.iloc[-1]
     prev = df.iloc[-2]
 
     signal = "WAIT"
-    entry = sl = tp = None
     confidence = 0
+    entry = sl = tp = None
+    reason = ""
 
-    if strict:
-        if (
-            last['close'] > last['ema10'] > last['ema20'] > last['ema50'] and
-            55 < last['rsi'] < 70 and
-            last['macd'] > 0 and last['macd'] > prev['macd'] and
-            (last['close'] - last['open']) > 0 and
-            (last['close'] - last['low']) > 0.7 * (last['high'] - last['low'])
-        ):
-            signal = "BUY"
-            entry = round(last['close'], 5)
-            sl = round(entry - last['atr'], 5)
-            tp = round(entry + (last['atr'] * 1.8), 5)
-            confidence = 95
+    # Strict BUY Conditions
+    if (
+        last["close"] > last["ema10"] > last["ema20"] > last["ema50"] and
+        last["macd"] > 0 and last["macd"] > prev["macd"] and
+        last["rsi"] > 55 and last["rsi"] < 70
+    ):
+        entry = round(last["ema20"], 5)  # wait for pullback
+        sl = round(entry - last["atr"], 5)
+        tp = round(entry + last["atr"] * 2, 5)
+        confidence = 99
+        signal = "BUY"
+        reason = "EMA alignment + RSI strong + MACD rising"
 
-        elif (
-            last['close'] < last['ema10'] < last['ema20'] < last['ema50'] and
-            30 < last['rsi'] < 45 and
-            last['macd'] < 0 and last['macd'] < prev['macd'] and
-            (last['open'] - last['close']) > 0 and
-            (last['high'] - last['close']) > 0.7 * (last['high'] - last['low'])
-        ):
-            signal = "SELL"
-            entry = round(last['close'], 5)
-            sl = round(entry + last['atr'], 5)
-            tp = round(entry - (last['atr'] * 1.8), 5)
-            confidence = 95
-    else:
-        if last['close'] < last['ema10'] < last['ema20'] and last['rsi'] < 45 and last['macd'] < 0:
-            signal = "SELL"
-            entry = round(last['close'], 5)
-            sl = round(entry + 0.0015, 5)
-            tp = round(entry - 0.0025, 5)
-            confidence = 75
-        elif last['close'] > last['ema10'] > last['ema20'] and last['rsi'] > 55 and last['macd'] > 0:
-            signal = "BUY"
-            entry = round(last['close'], 5)
-            sl = round(entry - 0.0015, 5)
-            tp = round(entry + 0.0025, 5)
-            confidence = 75
+    # Strict SELL Conditions
+    elif (
+        last["close"] < last["ema10"] < last["ema20"] < last["ema50"] and
+        last["macd"] < 0 and last["macd"] < prev["macd"] and
+        last["rsi"] < 45
+    ):
+        entry = round(last["ema20"], 5)  # pullback entry
+        sl = round(entry + last["atr"], 5)
+        tp = round(entry - last["atr"] * 2, 5)
+        confidence = 99
+        signal = "SELL"
+        reason = "EMA down + RSI weak + MACD falling"
 
-    binary = "UP" if signal == "BUY" else "DOWN" if signal == "SELL" else "NO ACTION"
-    return signal, entry, sl, tp, binary, confidence
+    return signal, entry, sl, tp, confidence, reason
 
-# ---------------------------------------
-# 5. Plot Chart
-# ---------------------------------------
-def plot_chart(df):
+# -------------------------------
+# Chart Display
+# -------------------------------
+def plot(df):
     fig = go.Figure()
     fig.add_trace(go.Candlestick(
-        x=df['date'], open=df['open'], high=df['high'], low=df['low'], close=df['close'], name='Price'))
-    fig.add_trace(go.Scatter(x=df['date'], y=df['ema10'], line=dict(color='orange'), name='EMA 10'))
-    fig.add_trace(go.Scatter(x=df['date'], y=df['ema20'], line=dict(color='red'), name='EMA 20'))
-    fig.add_trace(go.Scatter(x=df['date'], y=df['ema50'], line=dict(color='gray'), name='EMA 50'))
-    fig.add_trace(go.Scatter(x=df['date'], y=df['bb_upper'], line=dict(color='blue', dash='dot'), name='BB Upper'))
-    fig.add_trace(go.Scatter(x=df['date'], y=df['bb_lower'], line=dict(color='blue', dash='dot'), name='BB Lower'))
-    fig.update_layout(height=500, margin=dict(l=0, r=0, t=0, b=0))
+        x=df["date"], open=df["open"], high=df["high"],
+        low=df["low"], close=df["close"], name="Candles"))
+    fig.add_trace(go.Scatter(x=df["date"], y=df["ema10"], name="EMA10", line=dict(color="orange")))
+    fig.add_trace(go.Scatter(x=df["date"], y=df["ema20"], name="EMA20", line=dict(color="red")))
+    fig.add_trace(go.Scatter(x=df["date"], y=df["ema50"], name="EMA50", line=dict(color="gray")))
+    fig.update_layout(height=500, xaxis_rangeslider_visible=False)
     st.plotly_chart(fig, use_container_width=True)
 
-# ---------------------------------------
-# 6. Main App Logic
-# ---------------------------------------
-with st.spinner("Fetching chart and generating signal..."):
+# -------------------------------
+# Run App
+# -------------------------------
+with st.spinner("Analyzing..."):
     df = get_data(from_symbol, to_symbol)
-
     if not df.empty:
-        signal, entry, sl, tp, binary, confidence = generate_signal(df, strict=strict_mode)
-        plot_chart(df)
+        signal, entry, sl, tp, confidence, reason = analyze(df)
+        plot(df)
 
-        st.subheader("💡 Trade Signal")
+        st.subheader("💡 AI Smart Trade Plan")
         if signal == "WAIT":
-            st.info("No safe signal detected right now. Wait for trend confirmation.")
+            st.info("No high-confidence setup right now. Waiting for perfect zone.")
         else:
-            st.success(f"{signal} Signal ✅")
-            st.metric("Entry Price", entry)
+            st.success(f"{signal} PLAN ✅ (Confidence: {confidence}%)")
+            st.metric("Suggested Entry", entry)
             st.metric("Stop Loss", sl)
             st.metric("Take Profit", tp)
-            st.metric("Confidence Score", f"{confidence}%")
-
-        st.subheader("📍 Binary Option Direction")
-        if binary != "NO ACTION":
-            st.success(f"Next 15-min Candle Expected: {binary}")
-        else:
-            st.warning("Binary direction unclear — wait for setup.")
+            st.caption(f"🧠 Reason: {reason}")
