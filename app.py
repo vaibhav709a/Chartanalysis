@@ -1,4 +1,8 @@
-import streamlit as st import pandas as pd import plotly.graph_objects as go import ta import requests
+import import streamlit as st
+import pandas as pd
+import plotly.graph_objects as go
+import ta
+import requests
 
 ---------------------------------------
 
@@ -26,7 +30,7 @@ strict_mode = st.toggle("🔒 Strict Signal Mode", value=True)
 
 ---------------------------------------
 
-def get_data(symbol1, symbol2): api_key = "806dd29a09244737ae6cd1a305061557"  # Replace with your actual TwelveData API key url = f"https://api.twelvedata.com/time_series?symbol={symbol1}/{symbol2}&interval=15min&outputsize=50&apikey={api_key}" r = requests.get(url) data = r.json()
+def get_data(symbol1, symbol2): api_key = "your_twelvedata_api_key_here"  # Replace with your actual TwelveData API key url = f"https://api.twelvedata.com/time_series?symbol={symbol1}/{symbol2}&interval=15min&outputsize=50&apikey={api_key}" r = requests.get(url) data = r.json()
 
 if 'values' not in data:
     st.error("Error fetching data. Please check your API key and symbol.")
