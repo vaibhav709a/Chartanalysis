@@ -19,6 +19,7 @@ symbols = {
     "USD/JPY": ("USD", "JPY"),
     "USD/CHF": ("USD", "CHF"),
     "AUD/USD": ("AUD", "USD"),
+    "XAU/USD": ("XAU", "USD"),
     "USD/CAD": ("USD", "CAD")
 }
 pair = st.selectbox("Select Forex Pair", list(symbols.keys()))
